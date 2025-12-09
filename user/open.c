@@ -12,3 +12,6 @@ int main()
     write(fd,"ooo\n",4);
     exit(0);
 }
+
+
+

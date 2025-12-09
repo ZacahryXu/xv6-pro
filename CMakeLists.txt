@@ -12,4 +12,9 @@ add_executable(xv6
         kernel/main.c
         user/redirect.c
         user/sleep.c
+        user/pingpong.c
+        user/find.c
+        user/xargs.c
+        user/trace.c
 )
+

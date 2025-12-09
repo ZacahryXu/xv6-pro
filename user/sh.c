@@ -75,7 +75,20 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(1);
-    exec(ecmd->argv[0], ecmd->argv);
+//    exec(ecmd->argv[0], ecmd->argv);
+
+/* 永远先拼 / 再执行 */
+          char path[128];
+          char *dst = path + 1, *src = ecmd->argv[0];
+          path[0] = '/';
+          while((*dst++ = *src++))        /* 拷贝命令名 */
+              ;
+          exec(path, ecmd->argv);
+
+
+
+
+
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 

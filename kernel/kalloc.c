@@ -30,6 +30,26 @@ kinit()
   freerange(end, (void*)PHYSTOP);
 }
 
+// 返回系统当前空闲物理内存字节数
+uint64
+freebytes(void)
+{
+    struct run *r;
+    uint64 n = 0;
+
+    acquire(&kmem.lock);
+    for(r = kmem.freelist; r; r = r->next)
+        n += PGSIZE;
+    release(&kmem.lock);
+    return n;
+}
+
+
+
+
+
+
+
 void
 freerange(void *pa_start, void *pa_end)
 {

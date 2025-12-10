@@ -106,4 +106,5 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int trace_mask;          // 新增：保存 trace 参数
+    pagetable_t kernelpt;   // 进程的内核页表
 };

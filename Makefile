@@ -210,6 +210,7 @@ UPROGS=\
 
 
 
+
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
 	$U/_stats

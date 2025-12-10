@@ -127,13 +127,29 @@ found:
     return 0;
   }
 
-  // An empty user page table.
-  p->pagetable = proc_pagetable(p);
-  if(p->pagetable == 0){
-    freeproc(p);
-    release(&p->lock);
-    return 0;
-  }
+    // An empty user page table.
+    p->pagetable = proc_pagetable(p);
+    if(p->pagetable == 0){
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
+
+    // Init the kernel page table
+    p->kernelpt = proc_kpt_init();
+    if(p->kernelpt == 0){
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
+
+    // 下面这段就是从 procinit 迁过来的内核栈映射
+    char *pa = kalloc();
+    if(pa == 0)
+        panic("kalloc");
+    uint64 va = KSTACK((int)(p - proc));
+    uvmmap(p->kernelpt, va, (uint64)pa, PGSIZE, PTE_R|PTE_W);
+    p->kstack = va;
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -150,6 +166,18 @@ found:
 static void
 freeproc(struct proc *p)
 {
+    // free the kernel stack in the RAM
+    if(p->kernelpt){
+        uvmunmap(p->kernelpt, p->kstack, 1, 1);
+        p->kstack = 0;
+    }
+
+    // 释放内核页表本身
+    if(p->kernelpt){
+        proc_freekernelpt(p->kernelpt);
+        p->kernelpt = 0;
+    }
+
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -669,4 +697,19 @@ procnum(void)
         if(p->state != UNUSED)
             n++;
     return n;
+}
+
+
+void
+proc_freekernelpt(pagetable_t kernelpt)
+{
+    for(int i = 0; i < 512; i++){
+        pte_t pte = kernelpt[i];
+        if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+            uint64 child = PTE2PA(pte);
+            proc_freekernelpt((pagetable_t)child);
+        }
+        kernelpt[i] = 0;
+    }
+    kfree((void*)kernelpt);
 }

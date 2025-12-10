@@ -466,3 +466,36 @@ vmprint(pagetable_t pagetable)
     printf("page table %p\n", pagetable);
     _vmprint(pagetable, 1);
 }
+
+// 辅助：对“进程内核页表”做映射，等价于 kvmmap
+void
+uvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
+{
+    if(mappages(pagetable, va, sz, pa, perm) != 0)
+        panic("uvmmap");
+}
+
+// 创建进程私有的内核页表
+pagetable_t
+proc_kpt_init(void)
+{
+    pagetable_t kpt = uvmcreate();
+    if(kpt == 0) return 0;
+
+    uvmmap(kpt, UART0,        UART0,        PGSIZE, PTE_R|PTE_W);
+    uvmmap(kpt, VIRTIO0,      VIRTIO0,      PGSIZE, PTE_R|PTE_W);
+    uvmmap(kpt, CLINT,        CLINT,        0x10000, PTE_R|PTE_W);
+    uvmmap(kpt, PLIC,         PLIC,         0x400000, PTE_R|PTE_W);
+    uvmmap(kpt, KERNBASE,     KERNBASE,     (uint64)etext-KERNBASE, PTE_R|PTE_X);
+    uvmmap(kpt, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R|PTE_W);
+    uvmmap(kpt, TRAMPOLINE,   (uint64)trampoline, PGSIZE, PTE_R|PTE_X);
+    return kpt;
+}
+
+// 把进程内核页表加载到 SATR
+void
+proc_inithart(pagetable_t kpt)
+{
+    w_satp(MAKE_SATP(kpt));
+    sfence_vma();
+}

@@ -432,3 +432,37 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+
+// 递归辅助函数
+static void
+_vmprint(pagetable_t pagetable, int level)
+{
+    for(int i = 0; i < 512; i++){
+        pte_t pte = pagetable[i];
+        if(!(pte & PTE_V)) continue;          // 无效项直接跳过
+
+        // 打印前缀 ".."
+        for(int j = 0; j < level; j++){
+            if(j) printf(" ");
+            printf("..");
+        }
+
+        uint64 pa = PTE2PA(pte);
+        printf("%d: pte %p pa %p\n", i, (void*)pte, (void*)pa);
+
+        // 如果 R/W/X 全为 0，说明指向更低级页表
+        if((pte & (PTE_R | PTE_W | PTE_X)) == 0){
+            _vmprint((pagetable_t)pa, level + 1);
+        }
+    }
+}
+
+// 外部调用接口
+void
+vmprint(pagetable_t pagetable)
+{
+    printf("page table %p\n", pagetable);
+    _vmprint(pagetable, 1);
+}

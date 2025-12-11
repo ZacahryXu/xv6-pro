@@ -204,3 +204,5 @@ int copyinstr_new(pagetable_t, char *, uint64, uint64);
 void u2kvmcopy(pagetable_t, pagetable_t, uint64, uint64);
 
 pte_t *walk(pagetable_t, uint64, int);
+
+void backtrace(void);

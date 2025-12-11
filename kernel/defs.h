@@ -104,6 +104,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+uint64          sys_vmprint(void);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -195,3 +196,11 @@ void            virtio_disk_intr(void);
 uint64          freebytes(void);          // 已改写，返回 bytes
 // proc.c
 uint64          procnum(void);            // 返回活动进程数
+
+// vmcopyin.c
+int copyin_new(pagetable_t, char *, uint64, uint64);
+int copyinstr_new(pagetable_t, char *, uint64, uint64);
+// vm.c
+void u2kvmcopy(pagetable_t, pagetable_t, uint64, uint64);
+
+pte_t *walk(pagetable_t, uint64, int);

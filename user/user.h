@@ -47,3 +47,5 @@ int trace(int);
 
 struct sysinfo;
 int sysinfo(struct sysinfo *);
+
+int vmprint(void);

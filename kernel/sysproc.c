@@ -127,3 +127,10 @@ sys_sysinfo(void)
         return -1;
     return 0;
 }
+
+uint64
+sys_vmprint(void)
+{
+    vmprint(myproc()->pagetable);
+    return 0;
+}

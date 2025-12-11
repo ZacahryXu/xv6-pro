@@ -131,6 +131,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace,
 [SYS_sysinfo] sys_sysinfo,
+[SYS_vmprint] sys_vmprint,
 };
 
 static char *syscalls_name[] = {
@@ -157,6 +158,7 @@ static char *syscalls_name[] = {
         [SYS_close]   "close",
         [SYS_trace]   "trace",
         [SYS_sysinfo] "sysinfo",
+        [SYS_vmprint] "vmprint",
 };
 
 

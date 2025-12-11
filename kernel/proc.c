@@ -262,7 +262,9 @@ userinit(void)
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
-
+/*---- 新增：把 init 进程的用户映射同步到内核页表 ----*/
+    u2kvmcopy(p->pagetable, p->kernelpt, 0, p->sz);
+    /*--------------------------------------------------*/
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -287,10 +289,15 @@ growproc(int n)
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
+
+        /*---- 新增：把本次增长的区间同步到内核页表 ----*/
+        u2kvmcopy(p->pagetable, p->kernelpt, sz - n, sz);
+        /*---------------------------------------------*/
     }
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
+
   p->sz = sz;
   return 0;
 }
@@ -316,7 +323,8 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
+// 复制用户映射到内核页表
+    u2kvmcopy(np->pagetable, np->kernelpt, 0, np->sz);
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 

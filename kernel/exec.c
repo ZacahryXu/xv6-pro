@@ -74,7 +74,9 @@ exec(char *path, char **argv)
   uvmclear(pagetable, sz-2*PGSIZE);
   sp = sz;
   stackbase = sp - PGSIZE;
-
+    /*----- 新增：把用户映射同步到内核页表 -----*/
+    u2kvmcopy(pagetable, p->kernelpt, 0, sz);
+    /*-----------------------------------------*/
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)

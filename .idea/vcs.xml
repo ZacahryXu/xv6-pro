@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="//wsl$/Ubuntu/xv6/xv6-labs-2021" vcs="Git" />
+    <mapping directory="//wsl$/Ubuntu/xv6/xv6-pro" vcs="Git" />
   </component>
 </project>

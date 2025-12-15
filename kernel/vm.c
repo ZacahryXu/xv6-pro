@@ -7,7 +7,7 @@
 #include "fs.h"
 
 /*
- * the kernel's page table.
+ * the kernel's page table.  内核的页表
  */
 pagetable_t kernel_pagetable;
 
@@ -77,24 +77,38 @@ kvminithart()
 //   21..29 -- 9 bits of level-1 index.
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
+/*
+ *返回与虚拟内存的虚拟地址一致的在页表中的PTE(页表项 )，如果 alloc!=0, 创建需要的页表。
+ *risc-v sv39 体系 有三级页表. 每个页表包括 512个64位的PTE，
+ *64位的虚拟地址被分成了五个字段:
+ * 39..63 -- 必须是0
+ * 30..38 -- 9位二级页表索引
+ * 21..29 -- 9位一级页表索引
+ * 12..20 -- 9位0级页表索引
+ * 0.11   -- 12位页内偏移量
+ */
+//返回一个pte_t的指针(本质是无符号long类型的指针)
 pte_t *
+  //pagetable 是页表，是个数组, alloc
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
+  pagetable_t p = pagetable;
+  //不要大于39位
   if(va >= MAXVA)
     panic("walk");
 
   for(int level = 2; level > 0; level--) {
-    pte_t *pte = &pagetable[PX(level, va)];
+    pte_t *pte = &p[PX(level, va)];
     if(*pte & PTE_V) {
-      pagetable = (pagetable_t)PTE2PA(*pte);
+      p = (pagetable_t)PTE2PA(*pte);
     } else {
-      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+      if(!alloc || (p = (pde_t*)kalloc()) == 0)
         return 0;
-      memset(pagetable, 0, PGSIZE);
-      *pte = PA2PTE(pagetable) | PTE_V;
+      memset(p, 0, PGSIZE);
+      *pte = PA2PTE(p) | PTE_V;
     }
   }
-  return &pagetable[PX(0, va)];
+  return &p[PX(0, va)];
 }
 
 // Look up a virtual address, return the physical address,

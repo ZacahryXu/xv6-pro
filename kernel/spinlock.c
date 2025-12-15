@@ -12,7 +12,9 @@ void
 initlock(struct spinlock *lk, char *name)
 {
   lk->name = name;
+  //将锁的状态设置为0
   lk->locked = 0;
+  //把锁交给cpu0
   lk->cpu = 0;
 }
 

@@ -49,3 +49,6 @@ struct sysinfo;
 int sysinfo(struct sysinfo *);
 
 int vmprint(void);
+
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);

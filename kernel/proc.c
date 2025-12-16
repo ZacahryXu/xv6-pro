@@ -155,6 +155,16 @@ found:
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
+    // Alarm init
+    p->alarm_interval = 0;
+    p->alarm_ticks = 0;
+    p->alarm_handler = 0;
+    p->alarm_executing = 0;
+    if ((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0) {
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
   p->context.sp = p->kstack + PGSIZE;
 
   return p;
@@ -177,7 +187,10 @@ freeproc(struct proc *p)
         proc_freekernelpt(p->kernelpt);
         p->kernelpt = 0;
     }
-
+    if(p->alarm_trapframe){
+        kfree((void*)p->alarm_trapframe);
+    p->alarm_trapframe = 0;
+    }
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;

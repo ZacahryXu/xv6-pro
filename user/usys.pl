@@ -39,3 +39,5 @@ entry("uptime");
 entry("trace");
 entry("sysinfo");
 entry("vmprint");
+entry("sigalarm");
+entry("sigreturn");

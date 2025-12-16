@@ -46,10 +46,10 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
+
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
+
   if(r_scause() == 8){
     // system call
 
@@ -73,12 +73,24 @@ usertrap(void)
     p->killed = 1;
   }
 
-  if(p->killed)
-    exit(-1);
+    if(p->killed){
+        exit(-1);
+    }
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+    // 时钟中断处理
+    if(which_dev == 2){
+        struct proc *p = myproc();
+        if(p && p->alarm_interval > 0 && !p->alarm_executing){
+            p->alarm_ticks++;
+            if(p->alarm_ticks == p->alarm_interval){
+                p->alarm_ticks = 0;
+                p->alarm_executing = 1;        // ① 先置 1
+                memmove(p->alarm_trapframe, p->trapframe, sizeof(struct trapframe));
+                p->trapframe->epc = p->alarm_handler;
+            }
+        }
+        yield();
+    }
 
   usertrapret();
 }
@@ -108,7 +120,7 @@ usertrapret(void)
 
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
-  
+
   // set S Previous Privilege mode to User.
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
@@ -121,7 +133,7 @@ usertrapret(void)
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
 
-  // jump to trampoline.S at the top of memory, which 
+  // jump to trampoline.S at the top of memory, which
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);

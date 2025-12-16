@@ -209,6 +209,7 @@ UPROGS=\
 	$U/_sysinfo\
 	$U/_vmprint\
 	$U/_bttest\
+	$U/_alarmtest\
 
 
 

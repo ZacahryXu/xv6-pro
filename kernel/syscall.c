@@ -106,6 +106,8 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
+extern uint64 sys_sigalarm(void);
+extern uint64 sys_sigreturn(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -132,6 +134,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_trace]   sys_trace,
 [SYS_sysinfo] sys_sysinfo,
 [SYS_vmprint] sys_vmprint,
+        [SYS_sigalarm]  sys_sigalarm,
+        [SYS_sigreturn] sys_sigreturn,
 };
 
 static char *syscalls_name[] = {
@@ -159,6 +163,8 @@ static char *syscalls_name[] = {
         [SYS_trace]   "trace",
         [SYS_sysinfo] "sysinfo",
         [SYS_vmprint] "vmprint",
+        [SYS_sigalarm]  "sigalarm",
+        [SYS_sigreturn] "sigreturn",
 };
 
 
@@ -191,3 +197,37 @@ syscall(void)
         p->trapframe->a0 = -1;
     }
 }
+
+
+
+uint64
+sys_sigalarm(void)
+{
+    int interval;
+    uint64 handler;
+
+    if(argint(0, &interval) < 0 || argaddr(1, &handler) < 0)
+        return -1;
+
+    struct proc *p = myproc();
+    p->alarm_interval = interval;
+    p->alarm_handler  = handler;   // 这里就是用户传进来的地址
+    p->alarm_ticks    = 0;
+    p->alarm_executing = 0;
+    return 0;
+}
+uint64
+sys_sigreturn(void)
+{
+    struct proc *p = myproc();
+    if(!p || !p->alarm_trapframe) return -1;
+
+    /* 1. 关中断，保证下面清 0 不会被打断 */
+    uint64 s = intr_get();
+    intr_off();
+    p->alarm_executing = 0;   // 2. 安全清零
+    if(s) intr_on();          // 3. 恢复原来中断状态
+
+    return 0;
+}
+

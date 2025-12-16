@@ -107,4 +107,12 @@ struct proc {
   char name[16];               // Process name (debugging)
   int trace_mask;          // 新增：保存 trace 参数
     pagetable_t kernelpt;   // 进程的内核页表
+
+
+    // Alarm fields
+    int alarm_interval;      // 0 → disabled
+    int alarm_ticks;         // 已经走了多少个 tick
+    uint64 alarm_handler;    // 用户空间函数指针
+    int alarm_executing;     // 1 → 正在执行 handler，防止重入
+    struct trapframe *alarm_trapframe; // 保存被打断的寄存器
 };

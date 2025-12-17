@@ -41,32 +41,39 @@ usertrap(void)
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
-  // send interrupts and exceptions to kerneltrap(),
-  // since we're now in the kernel.
+  // 发送中断给内核处理（保持不变）
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
-  // save user program counter.
-  p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
-    // system call
 
+  // 保存用户栈指针和计数器
+  p->trapframe->epc = r_sepc();
+
+  uint64 scause = r_scause(); // 获取异常原因
+
+  if(scause == 8){
+    // 系统调用 (System call)
     if(p->killed)
       exit(-1);
-
-    // sepc points to the ecall instruction,
-    // but we want to return to the next instruction.
     p->trapframe->epc += 4;
-
-    // an interrupt will change sstatus &c registers,
-    // so don't enable until done with those registers.
     intr_on();
-
     syscall();
   } else if((which_dev = devintr()) != 0){
-    // ok
+    // 外部中断（时钟等）
+  } else if(scause == 15){
+    // --- COW 核心逻辑开始 ---
+    // 15 代表 Store/AMO page fault (写页面错误)
+
+    uint64 va = r_stval(); // 获取引发异常的虚拟地址
+
+    // 检查：如果地址超出进程大小，或者是栈下的非法区域，直接干掉进程
+    if(va >= MAXVA || va >= p->sz){
+      p->killed = 1;
+    } else if(cowalloc(p->pagetable, va) < 0){
+      // 如果 cowalloc 失败（比如内存不足），也干掉进程
+      p->killed = 1;
+    }
+    // --- COW 核心逻辑结束 ---
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -76,7 +83,7 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
+  // 如果是时钟中断，让出 CPU
   if(which_dev == 2)
     yield();
 

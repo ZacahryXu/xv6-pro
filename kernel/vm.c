@@ -176,6 +176,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
 // Optionally free the physical memory.
+// 移除映射，注意这里调用了 kfree，由于 kalloc.c 里的 kfree 带引用计数，所以很安全
 void
 uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
@@ -194,7 +195,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      kfree((void*)pa);
+      kfree((void*)pa); // 递减引用计数
     }
     *pte = 0;
   }
@@ -311,33 +312,45 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
+/*
+ * 修改后的 uvmcopy: fork 时调用
+ * 不再复制内存，只映射并打上 COW 标记
+ */
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+
+    // 如果是可写页，将其变为不可写并标记为 COW
+    if(flags & PTE_W) {
+      flags &= ~PTE_W;
+      flags |= PTE_COW;
+      *pte = PA2PTE(pa) | flags;
+    }
+
+    // 映射到子进程，共享同一物理页
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
+
+    // 增加物理页引用计数
+    kref_inc((void*)pa);
   }
   return 0;
 
- err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
+  err:
+   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
 
@@ -357,6 +370,9 @@ uvmclear(pagetable_t pagetable, uint64 va)
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
+/*
+ * 修改后的 copyout: 处理内核向用户态 COW 页写入的情况
+ */
 int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
@@ -364,9 +380,14 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
+    // 在拷贝前检查并处理 COW
+    if(cowalloc(pagetable, va0) < 0)
       return -1;
+
+    pte_t *pte = walk(pagetable, va0, 0);
+    if(pte == 0) return -1;
+    pa0 = PTE2PA(*pte);
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -445,4 +466,49 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+// kernel/vm.c
+
+/*
+ * COW 核心实现：cowalloc
+ * 处理写异常或 copyout 时的页面分裂
+ */
+int
+cowalloc(pagetable_t pagetable, uint64 va)
+{
+  if(va >= MAXVA) return -1;
+  va = PGROUNDDOWN(va);
+
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0) return -1;
+  if((*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) return -1;
+
+  uint64 pa = PTE2PA(*pte);
+  uint flags = PTE_FLAGS(*pte);
+
+  // 如果已经是可写的，不需要处理
+  if(flags & PTE_W) return 0;
+
+  // 如果是 COW 标记的页
+  if(flags & PTE_COW) {
+    // 申请新物理页
+    char *mem = kalloc();
+    if(mem == 0) return -1;
+
+    // 拷贝内容
+    memmove(mem, (char*)pa, PGSIZE);
+
+    // 更新权限：加上写权限，去掉 COW 标记
+    flags |= PTE_W;
+    flags &= ~PTE_COW;
+
+    // 更新页表项指向新物理页
+    *pte = PA2PTE(mem) | flags;
+
+    // 核心：释放旧页（这会递减引用计数，如果没人用了就真的释放）
+    kfree((void*)pa);
+    return 0;
+  }
+
+  return -1;
 }

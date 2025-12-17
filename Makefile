@@ -201,6 +201,7 @@ UPROGS=\
 	$U/_redirect\
 	$U/_sleep\
 	$U/_pingpong\
+	$U/_cowtest\
 
 
 
